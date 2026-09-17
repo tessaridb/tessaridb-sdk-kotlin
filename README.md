@@ -5,9 +5,25 @@ node's binary protocol directly, with **no runtime dependencies**: a database
 client is something you add to a service that already has opinions about JSON,
 HTTP and coroutines, and every dependency it brings is one you have to reconcile.
 
-> **Pre-alpha.** Everything below is written and is exercised against a running
-> node. This README says what exists rather than what is planned, so nothing
-> here describes something you cannot call.
+> **Early, and complete in the sense that matters:** everything below is written
+> and is exercised against a running node. This README says what exists rather
+> than what is planned, so nothing here describes something you cannot call. The
+> public API still changes without notice while the server it talks to is
+> pre-1.0.
+
+## Versions, and what actually has to match
+
+This client's version is **its own** and never tracks the engine's. A fix here
+would otherwise force an invented engine release, and an engine release would
+force five invented client releases.
+
+What has to match is the **protocol**. This release speaks **protocol 1.1** and
+connects to any node of protocol **major 1**, which is checked in the greeting
+before anything else is sent — a differing major is refused there rather than
+discovered mid-conversation, where it arrives as a decode failure that reads
+like corruption. A differing *minor* is not a refusal: the peer's minor is
+reported so a caller can decline to send what an older node cannot read.
+
 
 ## What is here today
 
