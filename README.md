@@ -5,10 +5,10 @@ node's binary protocol directly, with **no runtime dependencies**: a database
 client is something you add to a service that already has opinions about JSON,
 HTTP and coroutines, and every dependency it brings is one you have to reconcile.
 
-> **Pre-alpha.** The value codec and the wire connection are here. The query
-> builder and the HTTP surface are not written yet — this README says what
-> exists rather than what is planned, so nothing here describes something you
-> cannot call.
+> **Pre-alpha.** The value codec, the wire connection and the query builder are
+> here. The HTTP surface is not written yet — this README says what exists
+> rather than what is planned, so nothing here describes something you cannot
+> call.
 
 ## What is here today
 
@@ -26,7 +26,10 @@ HTTP and coroutines, and every dependency it brings is one you have to reconcile
   than as a failure;
 - **subscriptions**, which consume the connection they are opened on, because
   that is what the protocol does and hiding it would promise a multiplexing
-  nothing performs.
+  nothing performs;
+- the **query builder**, checked against all 38 cases of `queries-v1.json` at
+  builder contract **1.1** — a caller's value never reaches the statement text,
+  and a name that is not a name is refused rather than quoted into acceptance.
 
 ```kotlin
 connect("127.0.0.1:9080", user = "root", password = "secret").use { db ->
