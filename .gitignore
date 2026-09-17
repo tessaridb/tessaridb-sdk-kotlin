@@ -1,0 +1,10 @@
+.gradle/
+build/
+.bgv
+.bgv/
+.githooks/
+CLAUDE.md
+AGENTS.md
+.idea/
+*.iml
+.DS_Store
