@@ -136,6 +136,19 @@ class ConnectionTest {
     }
 
     @Test
+    fun `a subscription the node refuses is a refusal and not an unknown frame`() {
+        // It arrives on the feed rather than at the Subscribe frame, because the
+        // node reads the frame before it can judge it. Read as an unknown frame
+        // it would send whoever met it to the protocol, when the answer is a
+        // statement they did not run.
+        val said = "no collection `thing` — name a namespace first"
+        val node = node(Wire.frame(Frames.REFUSAL, said.toByteArray(Charsets.UTF_8)))
+        val subscription = node.connection.subscribe(table = "thing")
+        val caught = assertFailsWith<RefusedException> { subscription.iterator().hasNext() }
+        assertEquals(said, caught.said)
+    }
+
+    @Test
     fun `a change on a connection that never subscribed closes it`() {
         // §3.3: an unknown frame here, and an unknown frame closes the connection.
         val body = Wire.u64(1) + Wire.text("person") + Wire.text("person:1") + byteArrayOf(0x01)

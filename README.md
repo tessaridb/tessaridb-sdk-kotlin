@@ -5,10 +5,9 @@ node's binary protocol directly, with **no runtime dependencies**: a database
 client is something you add to a service that already has opinions about JSON,
 HTTP and coroutines, and every dependency it brings is one you have to reconcile.
 
-> **Pre-alpha.** The value codec, the wire connection and the query builder are
-> here. The HTTP surface is not written yet — this README says what exists
-> rather than what is planned, so nothing here describes something you cannot
-> call.
+> **Pre-alpha.** Everything below is written and is exercised against a running
+> node. This README says what exists rather than what is planned, so nothing
+> here describes something you cannot call.
 
 ## What is here today
 
@@ -29,7 +28,22 @@ HTTP and coroutines, and every dependency it brings is one you have to reconcile
   nothing performs;
 - the **query builder**, checked against all 38 cases of `queries-v1.json` at
   builder contract **1.1** — a caller's value never reaches the statement text,
-  and a name that is not a name is refused rather than quoted into acceptance.
+  and a name that is not a name is refused rather than quoted into acceptance;
+- the **HTTP surface** — the object store, a backup, `/health` and `/ready`, and
+  `POST /script`.
+
+## The HTTP surface hands you bytes, on purpose
+
+The JVM has no JSON reader in its standard library. A typed result on the HTTP
+routes would mean this client choosing a JSON library for every service that
+adds it — the one thing a zero-dependency client has promised not to do. Every
+sibling client got its reader free from its own standard library; this one would
+have to import somebody's.
+
+So the **typed** surface is the wire, where a value arrives in the value codec
+and no JSON is involved at all, and the HTTP surface is for what HTTP is
+actually for: files, a backup, and asking a node how it is. It hands back the
+body, and you parse it with whatever your service already has.
 
 ```kotlin
 connect("127.0.0.1:9080", user = "root", password = "secret").use { db ->

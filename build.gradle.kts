@@ -56,4 +56,5 @@ tasks.test {
             ?: rootDir.resolve("../tessaridb-protocol/conformance").absolutePath,
     )
     System.getenv("TESSARIDB_TEST_NODE")?.let { systemProperty("tessaridb.node", it) }
+    System.getenv("TESSARIDB_TEST_HTTP")?.let { systemProperty("tessaridb.http", it) }
 }

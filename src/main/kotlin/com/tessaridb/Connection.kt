@@ -167,7 +167,20 @@ public class Connection internal constructor(
             close()
             return null
         }
+        if (frame.kind == Frames.REFUSAL) {
+            // The refusal for a subscription that could not be started arrives
+            // HERE rather than at `subscribe`, because the node reads the frame
+            // before it can judge it — a table it cannot watch, or a session
+            // that has named no namespace to look in. Reported as the refusal it
+            // is: read as an unknown frame it would send whoever met it to the
+            // protocol, when the answer is a statement they did not run.
+            close()
+            throw RefusedException(String(frame.body, Charsets.UTF_8))
+        }
         if (frame.kind != Frames.CHANGE) {
+            // A redirect belongs to a read that can be answered elsewhere. A
+            // subscription is a position in ONE node's log, so there is nothing
+            // for another node to answer and this stays a refusal.
             close()
             throw UnknownFrameException(frame.kind)
         }
