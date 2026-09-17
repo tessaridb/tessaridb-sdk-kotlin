@@ -10,7 +10,7 @@ import java.math.BigInteger
  * apart from every transport failure because the remedies differ completely —
  * one is a socket to retry, the other is a value to fix.
  */
-public class ProtocolException(message: String) : RuntimeException(message)
+public class ProtocolException(message: String) : TessariException(message)
 
 internal const val NANOS_PER_SECOND: Int = 1_000_000_000
 internal const val UUID_WIDTH: Int = 16

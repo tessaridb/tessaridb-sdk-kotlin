@@ -5,10 +5,10 @@ node's binary protocol directly, with **no runtime dependencies**: a database
 client is something you add to a service that already has opinions about JSON,
 HTTP and coroutines, and every dependency it brings is one you have to reconcile.
 
-> **Pre-alpha.** The value codec is here and is proven against the shared
-> conformance corpus. The connection, the query builder and the HTTP surface are
-> not written yet — this README says what exists rather than what is planned, so
-> nothing here describes something you cannot call.
+> **Pre-alpha.** The value codec and the wire connection are here. The query
+> builder and the HTTP surface are not written yet — this README says what
+> exists rather than what is planned, so nothing here describes something you
+> cannot call.
 
 ## What is here today
 
@@ -16,7 +16,31 @@ HTTP and coroutines, and every dependency it brings is one you have to reconcile
   in every JSON-shaped client are kept: `none` is not `null`, and an integer is
   an `i64` rather than a double;
 - the **value codec**, `encodeValue` and `decodeValue`, checked against
-  `values-v1.json` from the protocol repository, in both directions.
+  `values-v1.json` from the protocol repository, in both directions;
+- the **frame layer** — the greeting, the 16 MiB ceiling checked before anything
+  is allocated, and an unknown frame kind that closes the connection rather than
+  being stepped over;
+- the **connection** — one connection is one session, parameters travel in the
+  value codec rather than in the script, a refusal carries the store's own words
+  and leaves the connection usable, and a redirect arrives as a reply rather
+  than as a failure;
+- **subscriptions**, which consume the connection they are opened on, because
+  that is what the protocol does and hiding it would promise a multiplexing
+  nothing performs.
+
+```kotlin
+connect("127.0.0.1:9080", user = "root", password = "secret").use { db ->
+    val reply = db.execute(
+        // `\$` because a Kotlin string would otherwise interpolate it — the
+        // parameter is the node's, not the language's.
+        "SELECT * FROM person WHERE name = \$name;",
+        mapOf("name" to TextValue("ada")),
+    )
+    for (outcome in reply.outcomes) {
+        if (outcome is Records) for (row in outcome.rows) println(row.identity)
+    }
+}
+```
 
 ## The corpus is the proof, and it is not vendored
 
