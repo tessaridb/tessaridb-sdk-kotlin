@@ -169,6 +169,13 @@ class BodiesTest {
     }
 
     @Test
+    fun `a change from a split table carries its cursor`() {
+        val removed = Wire.u64(9) + Wire.text("thing") + Wire.text("1") + byteArrayOf(0x01)
+        assertEquals(null, readChange(removed).cursor)
+        assertEquals("0:9,2:3", readChange(removed + Wire.text("0:9,2:3")).cursor)
+    }
+
+    @Test
     fun `a redirect is settled or transient and zero is neither`() {
         // Zero is deliberately unassigned: it is what a truncated or zeroed
         // buffer holds, and giving it a meaning would let corruption decode as a
