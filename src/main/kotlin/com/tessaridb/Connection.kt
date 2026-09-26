@@ -79,17 +79,24 @@ public class Connection internal constructor(
      * resume correct is owned by [Subscription] rather than documented and left
      * to the caller — resuming at a position already handled delivers it twice
      * and resuming past one reports being caught up, and both are silent.
+     *
+     * [cursor] resumes a feed over a split table **after** the change that
+     * carried it ([Change.cursor], or [Subscription.resumeCursor]). It is opaque:
+     * store it and send it back.
      */
     @JvmOverloads
-    public fun subscribe(from: Long = 0, table: String? = null): Subscription {
+    public fun subscribe(from: Long = 0, table: String? = null, cursor: String? = null): Subscription {
         if (subscribed) throw TessariException("this connection is already a subscription")
         val w = Writer()
         w.u64(from)
         w.u8(if (table == null) 0 else 1)
         if (table != null) w.text(table)
+        // Last and only when present (§3.7): without it this is the frame every
+        // earlier node reads.
+        if (cursor != null) w.text(cursor)
         Frames.send(output, Frames.SUBSCRIBE, w.bytes())
         subscribed = true
-        return Subscription(this, from)
+        return Subscription(this, from, cursor)
     }
 
     override fun close() {
@@ -273,6 +280,12 @@ public data class Change(
     public val identity: String,
     public val removed: Boolean,
     public val value: Value?,
+    /**
+     * On a feed over a split table, where to resume after this change — its logs
+     * count separately, so no one [sequence] says where the feed was. `null` on
+     * every other feed.
+     */
+    public val cursor: String? = null,
 )
 
 /**
@@ -287,9 +300,14 @@ public data class Change(
 public class Subscription internal constructor(
     private val connection: Connection,
     from: Long,
+    cursor: String? = null,
 ) : Iterable<Change>, AutoCloseable {
     /** The position to resume from: the last sequence handled, plus one. */
     public var resumeFrom: Long = from
+        private set
+
+    /** On a feed over a split table, the cursor to resume from instead. */
+    public var resumeCursor: String? = cursor
         private set
 
     override fun iterator(): Iterator<Change> =
@@ -314,6 +332,7 @@ public class Subscription internal constructor(
                 val change = next!!
                 next = null
                 resumeFrom = change.sequence + 1
+                if (change.cursor != null) resumeCursor = change.cursor
                 return change
             }
         }
@@ -328,11 +347,16 @@ internal fun readChange(body: ByteArray): Change {
     val sequence = r.u64("a change sequence")
     val table = r.text("a change's table")
     val identity = r.text("a change's identity")
-    return when (val fate = r.u8("what became of a record")) {
-        0 -> Change(sequence, table, identity, false, decodeValue(r.lenbytes("a change's value")))
-        1 -> Change(sequence, table, identity, true, null)
-        else -> throw ProtocolException("a change is written (0) or removed (1), not $fate")
-    }
+    val fate = r.u8("what became of a record")
+    val value =
+        when (fate) {
+            0 -> decodeValue(r.lenbytes("a change's value"))
+            1 -> null
+            else -> throw ProtocolException("a change is written (0) or removed (1), not $fate")
+        }
+    // §3.8: bytes after the change are its cursor; none means the feed has none.
+    val cursor = if (r.exhausted) null else r.text("a change's cursor")
+    return Change(sequence, table, identity, fate == 1, value, cursor)
 }
 
 internal fun readElsewhere(body: ByteArray): Elsewhere {
