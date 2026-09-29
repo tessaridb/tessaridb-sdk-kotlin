@@ -215,6 +215,40 @@ class NodeTest {
     }
 
     @Test
+    fun `a batch of events lands whole in event-time order or not at all`() {
+        // §5.9. The node is the oracle for the rendering: a value this client
+        // spelled wrongly fails the batch or comes back different.
+        assumeTrue(httpAddress != null, "set TESSARIDB_TEST_HTTP=<host:port> to run the HTTP tests")
+        val surface = HttpSurface(httpAddress!!)
+        surface.script(
+            "DEFINE NAMESPACE IF NOT EXISTS kthttp; USE NAMESPACE kthttp; DEFINE DATABASE IF NOT EXISTS app; " +
+                "USE DATABASE app; DEFINE SERIES IF NOT EXISTS readings RETAIN 36500d TIME at;",
+        )
+        val run = java.lang.Long.toHexString(System.nanoTime())
+        fun event(second: Long, sensor: String): Value =
+            ObjectValue(
+                mapOf(
+                    "run" to TextValue(run),
+                    "sensor" to TextValue(sensor),
+                    "v" to FloatValue(1.5e300.toRawBits()),
+                    "note" to TextValue("it's \\ fine"),
+                    "at" to DatetimeValue(1_790_676_000 + second, 0),
+                ),
+            )
+        assertEquals(2, surface.append("kthttp", "app", "readings", listOf(event(2, "b"), event(1, "a"))))
+        val refused = assertFailsWith<HttpException> {
+            surface.append("kthttp", "app", "readings", listOf(event(3, "c"), ObjectValue(emptyMap())))
+        }
+        assertEquals(400, refused.status)
+        val answer = surface.script(
+            "USE NAMESPACE kthttp; USE DATABASE app; SELECT sensor, note FROM readings WHERE run = '$run';",
+        )
+        assertTrue(answer.contains("{\"note\":\"it's \\\\ fine\",\"sensor\":\"a\"}"), answer)
+        assertTrue(answer.indexOf("\"sensor\":\"a\"") < answer.indexOf("\"sensor\":\"b\""), answer)
+        assertTrue(!answer.contains("\"sensor\":\"c\""), answer)
+    }
+
+    @Test
     fun `a refusal on the HTTP surface carries the node's status`() {
         assumeTrue(httpAddress != null, "set TESSARIDB_TEST_HTTP=<host:port> to run the HTTP tests")
         val caught =

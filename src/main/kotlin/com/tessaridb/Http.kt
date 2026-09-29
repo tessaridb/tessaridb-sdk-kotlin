@@ -81,6 +81,23 @@ public class HttpSurface @JvmOverloads constructor(
     }
 
     /**
+     * Append a batch of events to a series in ONE transaction, and answer how
+     * many landed (§5.9). Every event is an [ObjectValue].
+     *
+     * The batch lands whole or not at all, and it is **not** idempotent: sent
+     * twice it lands twice. So it is sent once — a transport failure after the
+     * request left may mean it landed, and only the caller knows whether a second
+     * copy would be harmless. The one resend is after a `401` on a lapsed token,
+     * which the node answers before running anything. [NotAnEventException] is
+     * thrown before anything is sent.
+     */
+    public fun append(namespace: String, database: String, series: String, events: List<Value>): Long {
+        val body = eventBatch(events).toByteArray(Charsets.UTF_8)
+        val answer = send("POST", seriesPath(namespace, database, series), body, "text/plain")
+        return appendedIn(String(answer.body, Charsets.UTF_8))
+    }
+
+    /**
      * The whole log in one response — there is no resumption and no range
      * support, so a client's memory ceiling for this route is the log's size.
      *

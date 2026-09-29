@@ -102,6 +102,20 @@ connect("127.0.0.1:9080", user = "root", password = "secret").use { db ->
 }
 ```
 
+**One HTTP call takes typed values: a batch of events for a series** (node
+`0.14.0-beta`, §5.9). `append` renders `ObjectValue` events as TessariQL source —
+the route reads nothing else — sends the batch once, in one transaction, and
+answers how many landed. It is not idempotent, so a transport failure after the
+request left is the caller's to judge; a kind an event cannot carry throws
+`NotAnEventException` before anything is sent.
+
+```kotlin
+val landed = HttpSurface("127.0.0.1:8000").append(
+    "acme", "metrics", "readings",
+    listOf(ObjectValue(mapOf("sensor" to TextValue("s1"), "at" to DatetimeValue(1_790_676_000, 0)))),
+)
+```
+
 ## The corpus is the proof, and it is not vendored
 
 ```bash
