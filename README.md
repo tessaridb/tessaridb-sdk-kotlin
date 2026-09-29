@@ -72,7 +72,8 @@ dependency to do it. Both modes are **at least once**: make an effect outside
 the store idempotent, keyed by the topic, the group and `message.position`. The
 group, not the connection, holds the state, and it is declared in the store
 rather than by the consumer. The behaviour is the protocol repository's
-`spec/consumer-v1.md`, which every client follows.
+`spec/consumer-v1.md`, which every client follows, and the statements it sends
+are checked against all 14 cases of `conformance/consumer-v1.json`.
 
 ## The HTTP surface hands you bytes, on purpose
 
@@ -99,6 +100,20 @@ connect("127.0.0.1:9080", user = "root", password = "secret").use { db ->
         if (outcome is Records) for (row in outcome.rows) println(row.identity)
     }
 }
+```
+
+**One HTTP call takes typed values: a batch of events for a series** (node
+`0.14.0-beta`, §5.9). `append` renders `ObjectValue` events as TessariQL source —
+the route reads nothing else — sends the batch once, in one transaction, and
+answers how many landed. It is not idempotent, so a transport failure after the
+request left is the caller's to judge; a kind an event cannot carry throws
+`NotAnEventException` before anything is sent.
+
+```kotlin
+val landed = HttpSurface("127.0.0.1:8000").append(
+    "acme", "metrics", "readings",
+    listOf(ObjectValue(mapOf("sensor" to TextValue("s1"), "at" to DatetimeValue(1_790_676_000, 0)))),
+)
 ```
 
 ## The corpus is the proof, and it is not vendored
