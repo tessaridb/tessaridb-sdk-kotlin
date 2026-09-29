@@ -18,9 +18,6 @@ private const val FIRST_WAIT_MILLIS = 50L
 /** The longest wait between reads that answer nothing, in milliseconds (§4.5). */
 private const val LONGEST_WAIT_MILLIS = 1_000L
 
-private val NAME = Regex("[A-Za-z_][A-Za-z0-9_]*")
-private val GROUP = Regex("[A-Za-z0-9_.:-]{1,128}")
-
 /** One message, as the group handed it out. */
 public data class Message(
     /** Its position in the topic, from 1 — with the topic and group names, a stable key for idempotence. */
@@ -60,22 +57,13 @@ public class Consumer
         private val connection: Connection,
         namespace: String,
         database: String,
-        private val topic: String,
-        private val group: String,
+        topic: String,
+        group: String,
         batch: Int = 10,
     ) {
-        /** Sent with every statement: a reconnected connection has forgotten any earlier USE (§5). */
-        private val tenancy: String
+        private val statements = ConsumerStatements(namespace, database, topic, group)
         private val batch: Int = maxOf(1, batch)
         private val stopSignal = CountDownLatch(1)
-
-        init {
-            for ((position, name) in listOf("a namespace" to namespace, "a database" to database, "a topic" to topic)) {
-                if (!NAME.matches(name)) throw BuilderException.notAName(position, name)
-            }
-            if (!GROUP.matches(group)) throw BuilderException.notAName("a group", group)
-            tenancy = "USE NAMESPACE $namespace; USE DATABASE $database; "
-        }
 
         /**
          * Let the running handler finish (and, in auto mode, its acknowledgement be
@@ -122,30 +110,18 @@ public class Consumer
         }
 
         /** Acknowledge these positions; answers how many were in flight. One that was not counts nothing. */
-        public fun ack(positions: List<Long>): Long = settle("ACK $topic FOR CONSUMER '$group' AT ", positions, "")
+        public fun ack(positions: List<Long>): Long = if (positions.isEmpty()) 0 else settle(statements.ack(positions))
 
         /** Hand these positions back, now or after [delay]; answers how many were in flight. */
         @JvmOverloads
         public fun nack(
             positions: List<Long>,
             delay: Duration? = null,
-        ): Long {
-            // A delay is a duration literal in the grammar, not a parameter, written
-            // from a number formatted here and never from a caller's text.
-            val millis = delay?.toMillis() ?: 0L
-            val tail = if (millis > 0) " DELAY ${millis}ms" else ""
-            return settle("NACK $topic FOR CONSUMER '$group' AT ", positions, tail)
-        }
+        ): Long = if (positions.isEmpty()) 0 else settle(statements.nack(positions, delay))
 
-        private fun settle(
-            statement: String,
-            positions: List<Long>,
-            tail: String,
-        ): Long {
-            if (positions.isEmpty()) return 0
-            val parameters = positions.withIndex().associate { (index, position) -> "p$index" to IntegerValue(position) }
-            val references = positions.indices.joinToString(", ") { "\$p$it" }
-            val answered = connection.execute("$tenancy$statement$references$tail;", parameters).outcomes.lastOrNull()
+        private fun settle(rendered: Pair<String, Map<String, Value>>): Long {
+            val (script, parameters) = rendered
+            val answered = connection.execute(script, parameters).outcomes.lastOrNull()
             if (answered !is ValueOutcome) throw TessariException("an acknowledgement answered $answered")
             return whole(answered.value)
         }
@@ -156,7 +132,7 @@ public class Consumer
             while (!stopped) {
                 val answered =
                     connection
-                        .execute("${tenancy}READ FROM $topic FOR CONSUMER '$group' LIMIT $batch;")
+                        .execute(statements.read(batch))
                         .outcomes
                         .lastOrNull()
                 if (answered !is Records) throw TessariException("a group read answered $answered")

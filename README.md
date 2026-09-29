@@ -72,7 +72,8 @@ dependency to do it. Both modes are **at least once**: make an effect outside
 the store idempotent, keyed by the topic, the group and `message.position`. The
 group, not the connection, holds the state, and it is declared in the store
 rather than by the consumer. The behaviour is the protocol repository's
-`spec/consumer-v1.md`, which every client follows.
+`spec/consumer-v1.md`, which every client follows, and the statements it sends
+are checked against all 14 cases of `conformance/consumer-v1.json`.
 
 ## The HTTP surface hands you bytes, on purpose
 
