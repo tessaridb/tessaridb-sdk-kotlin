@@ -75,6 +75,33 @@ rather than by the consumer. The behaviour is the protocol repository's
 `spec/consumer-v1.md`, which every client follows, and the statements it sends
 are checked against all 14 cases of `conformance/consumer-v1.json`.
 
+## A space as a cache, a counter and a lock
+
+A space (`DEFINE SPACE`) keeps one value per key with an optional expiry.
+`Cache` makes each use one call over a connection you hold:
+
+```kotlin
+val cache = Cache(connection, "app", "main", "cache")
+
+cache.set("session:abc", TextValue("ada"), Duration.ofMinutes(30))
+val page = cache.getOrSet("page:/", Duration.ofMinutes(1)) { TextValue("<html>…") }
+val hits = cache.incr("hits")
+
+cache.lock("nightly-report", Duration.ofSeconds(30))?.let { lease ->
+    // … work, calling lease.extend() before 30 s pass
+    lease.release()
+}
+```
+
+Two rules the class is built around: **a plain `set` clears an expiry the key
+had** — pass the ttl on every write that must keep one — and **a lock is a
+lease, not a mutex**: past its ttl another holder may take it. `release` is an
+expiring conditional write, never a delete, so a lease that lapsed cannot remove
+the next holder's lock. `ttl()` keeps the store's two absences apart:
+`Expires`, `Never`, `Absent`. It rides the wire, so it needs no JSON reader and
+adds no dependency. The statements are the protocol repository's
+`spec/cache-v1.md`, which every client follows.
+
 ## The HTTP surface hands you bytes, on purpose
 
 The JVM has no JSON reader in its standard library. A typed result on the HTTP
