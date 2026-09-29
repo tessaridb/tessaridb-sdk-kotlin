@@ -48,6 +48,32 @@ reported so a caller can decline to send what an older node cannot read.
 - the **HTTP surface** — the object store, a backup, `/health` and `/ready`, and
   `POST /script`.
 
+## Consuming a topic
+
+A topic's consumer group (`DEFINE GROUP`, engine `0.12.0-beta` or later) hands
+each message to one member and forgets it only when it is acknowledged.
+`Consumer` reads under a group and calls your function once per message, in
+order:
+
+```kotlin
+val connection = connect("127.0.0.1:9080")
+val consumer = Consumer(connection, "app", "main", "jobs", "workers")
+
+// Automatic: returning acknowledges the message, throwing hands it back at once.
+thread { consumer.runAuto { message -> println("${message.position} ${message.value}") } }
+consumer.stop() // from anywhere: the running handler finishes, then the loop ends
+
+// Manual: return Settle.Ack, Settle.Nack(Duration.ofSeconds(5)) or Settle.Leave.
+consumer.runManual { Settle.Ack }
+```
+
+The loop blocks its thread, like every call in this client, and needs no
+dependency to do it. Both modes are **at least once**: make an effect outside
+the store idempotent, keyed by the topic, the group and `message.position`. The
+group, not the connection, holds the state, and it is declared in the store
+rather than by the consumer. The behaviour is the protocol repository's
+`spec/consumer-v1.md`, which every client follows.
+
 ## The HTTP surface hands you bytes, on purpose
 
 The JVM has no JSON reader in its standard library. A typed result on the HTTP
