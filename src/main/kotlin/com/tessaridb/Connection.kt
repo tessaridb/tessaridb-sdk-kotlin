@@ -99,6 +99,25 @@ public class Connection internal constructor(
         return Subscription(this, from, cursor)
     }
 
+    /**
+     * Send one Vault frame (§3.14) and return the status value it answers with.
+     * [body] is given the credentials when this connection still owes them — the
+     * frame carries them as a Request does. Nothing is sent to a node below
+     * [Frames.VAULT_MINOR].
+     */
+    internal fun vaultFrame(body: (Pair<String, String>?) -> ByteArray): Value {
+        if (minor < Frames.VAULT_MINOR) throw NodeTooOldException(minor, Frames.VAULT_MINOR)
+        if (subscribed) {
+            throw TessariException("this connection is a subscription and no longer answers statements")
+        }
+        val credentials = if (owed && user != null) user to (password ?: "") else null
+        if (credentials != null) owed = false
+        Frames.send(output, Frames.VAULT, body(credentials))
+        val answered = reply().outcomes.singleOrNull()
+        if (answered !is ValueOutcome) throw TessariException("a vault frame is answered with one value")
+        return answered.value
+    }
+
     override fun close() {
         try {
             closer.close()

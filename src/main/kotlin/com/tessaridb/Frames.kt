@@ -43,6 +43,12 @@ public object Frames {
     public const val CHANGE: Int = 5
     public const val ELSEWHERE: Int = 13
 
+    /** Client → node only, sent only to a node whose greeting says minor 2 or later (§3.14). */
+    public const val VAULT: Int = 17
+
+    /** The minor a node must announce before a Vault frame reaches it. */
+    public const val VAULT_MINOR: Int = 2
+
     internal val MAGIC: ByteArray = "TESS".toByteArray(Charsets.US_ASCII)
 
     /**
