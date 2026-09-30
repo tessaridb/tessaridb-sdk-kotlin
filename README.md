@@ -102,6 +102,30 @@ the next holder's lock. `ttl()` keeps the store's two absences apart:
 adds no dependency. The statements are the protocol repository's
 `spec/cache-v1.md`, which every client follows.
 
+## A vault, and its passphrase
+
+A vault (`DEFINE VAULT`) keeps `SECRET` fields encrypted in every copy that is not a
+running, unsealed node. The passphrase goes in a frame of its own, never in a
+statement, and is in no exception this client throws:
+
+```kotlin
+val conn = connect("127.0.0.1:9080")
+conn.unseal(storePassphrase)                      // the store's key, for ten minutes
+
+val vault = Vault(conn, "app", "main", "team")
+vault.write("github", mapOf("password" to TextValue("hunter2")))  // creates or edits, keeps recipients
+val page = vault.list(limit = 100)                 // ids only, never a value
+val secret = vault.reveal("github", listOf("password"))
+```
+
+A vault declared `DEFINE VAULT team PASSPHRASE '…'` opens with its own passphrase
+instead, and the store's opens nothing in it: `vault.status()`, `vault.unseal(…)`,
+`vault.seal()` and `vault.changePassphrase(…)` act on that vault alone, and
+`status().custody` says which kind a vault is. An unseal lasts the node's period and
+then closes by itself; a refusal after a run of wrong passphrases means **wait**, and
+is not retried here. The statements and frames are the protocol repository's
+`spec/vault-v1.md`.
+
 ## The HTTP surface hands you bytes, on purpose
 
 The JVM has no JSON reader in its standard library. A typed result on the HTTP

@@ -81,3 +81,11 @@ public class NoWritablePeerException(message: String) : TessariException(message
  * client rewording them becomes a second author for one error.
  */
 public class RefusedException(public val said: String) : TessariException(said)
+
+/**
+ * The node's greeting names a minor below the one a call needs, so nothing was
+ * sent: a frame an older node does not know closes the connection (§2.3).
+ */
+public class NodeTooOldException(public val found: Int, public val needed: Int) : TessariException(
+    "this node speaks protocol minor $found; this call needs $needed or later",
+)
