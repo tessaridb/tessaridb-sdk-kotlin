@@ -38,8 +38,14 @@ reported so a caller can decline to send what an older node cannot read.
   being stepped over;
 - the **connection** — one connection is one session, parameters travel in the
   value codec rather than in the script, a refusal carries the store's own words
-  and leaves the connection usable, and a redirect arrives as a reply rather
-  than as a failure;
+  and leaves the connection usable, and a redirect is followed rather than
+  raised — at most three hops, never to an older leadership than one already
+  followed, and only after `session::context()` there says it is the node named
+  (node `0.20.0-beta` and later), with the session's namespace and database
+  selected there first when each is a plain name. A *settled* redirect moves the
+  connection; a *transient* one answers and leaves it where it was. Each way
+  following stops is its own exception: `RedirectLoopException`,
+  `StaleRedirectException`, `WrongNodeException`, `NotFollowableException`;
 - **subscriptions**, which consume the connection they are opened on, because
   that is what the protocol does and hiding it would promise a multiplexing
   nothing performs;
