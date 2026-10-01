@@ -34,14 +34,17 @@ import java.net.Socket
  * than left to be discovered.
  */
 public class Connection internal constructor(
-    private val closer: AutoCloseable,
-    private val input: InputStream,
-    private val output: OutputStream,
+    private var closer: AutoCloseable,
+    private var input: InputStream,
+    private var output: OutputStream,
     private val user: String?,
     private val password: String?,
+    /** How to reach the node a redirect names; `null` when this connection cannot dial. */
+    private val dial: ((String) -> Connection)? = null,
 ) : AutoCloseable {
     /** The peer's minor version, so a caller may decline to send what it cannot read. */
-    public val minor: Int
+    public var minor: Int
+        private set
 
     private var owed: Boolean = user != null
     private var subscribed: Boolean = false
@@ -62,14 +65,75 @@ public class Connection internal constructor(
      *
      * A refusal does not close the connection: a caller that mistyped a
      * statement has not stopped being a caller.
+     *
+     * A redirect (§3.12) is followed to the node it names — at most three hops,
+     * the node there checked with `session::context()`, this session's
+     * namespace and database selected there first. A `settled` redirect moves
+     * this connection to that node; a `transient` one answers and stays here.
      */
     @JvmOverloads
     public fun execute(script: String, parameters: Map<String, Value> = emptyMap()): Reply {
+        val reply = ask(script, parameters)
+        val first = reply.redirect ?: return reply
+        val dialling = dial ?: return reply
+        return follow(dialling, script, parameters, first)
+    }
+
+    /** One request and its reply, a redirect returned rather than followed. */
+    internal fun ask(script: String, parameters: Map<String, Value>): Reply {
         if (subscribed) {
             throw TessariException("this connection is a subscription and no longer answers statements")
         }
         Frames.send(output, Frames.REQUEST, request(script, parameters))
         return reply()
+    }
+
+    /** Send [script] where [first] says, and on, until something answers. */
+    private fun follow(
+        dialling: (String) -> Connection,
+        script: String,
+        parameters: Map<String, Value>,
+        first: Elsewhere,
+    ): Reply {
+        val selecting = selection(contextOf(this))
+        var redirect = first
+        var floor = 0L
+        var hops = 0
+        while (true) {
+            if (hops >= MOST_HOPS) throw RedirectLoopException(hops)
+            if (java.lang.Long.compareUnsigned(redirect.epoch, floor) < 0) {
+                throw StaleRedirectException(redirect.epoch, floor)
+            }
+            floor = redirect.epoch
+            val there = dialling(redirect.endpoint)
+            val reply =
+                try {
+                    if (!names(contextOf(there), redirect.node)) throw WrongNodeException(redirect.node)
+                    if (selecting.isNotEmpty()) there.ask(selecting, emptyMap())
+                    hops++
+                    there.ask(script, parameters)
+                } catch (why: Throwable) {
+                    there.close()
+                    throw why
+                }
+            val next = reply.redirect
+            if (next == null) {
+                if (redirect.settlement == "settled") adopt(there) else there.close()
+                return reply
+            }
+            there.close()
+            redirect = next
+        }
+    }
+
+    /** Become [there]: a settled redirect says the session's data lives on that node now. */
+    private fun adopt(there: Connection) {
+        close()
+        closer = there.closer
+        input = there.input
+        output = there.output
+        minor = there.minor
+        owed = there.owed
     }
 
     /**
@@ -241,7 +305,7 @@ public fun connect(address: String, user: String? = null, password: String? = nu
         BufferedOutputStream(socket.getOutputStream()),
         user,
         password,
-    )
+    ) { endpoint -> connect(endpoint, user, password) }
 }
 
 /** Either the outcomes or a redirect, never both. */
