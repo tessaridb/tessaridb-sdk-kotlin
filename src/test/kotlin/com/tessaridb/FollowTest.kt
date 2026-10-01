@@ -15,6 +15,9 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNotEquals
+import kotlin.test.assertNull
+import org.junit.jupiter.api.Assumptions.assumeTrue
 
 private val NODE_A = ByteArray(16) { 0xa }
 private val NODE_B = ByteArray(16) { 0xb }
@@ -185,6 +188,43 @@ class FollowTest {
             assertEquals("pr-od", caught.name)
             assertIs<List<String>>(b.seen)
             assertEquals(emptyList(), b.seen.toList(), "B was never dialled")
+        }
+    }
+
+    /**
+     * The live half: a write and a leader-only read sent to a follower of a real
+     * two-node cluster land on the leader, the read by a transient redirect this
+     * client follows. `TESSARIDB_TEST_CLUSTER=<leader host:port>,<follower
+     * host:port>`, a cluster whose namespace `prod` holds database `shop` with
+     * collection `ledger`.
+     */
+    @Test
+    fun `a misrouted write and read land on the leader of a live cluster`() {
+        val cluster = System.getenv("TESSARIDB_TEST_CLUSTER")
+        assumeTrue(cluster != null, "set TESSARIDB_TEST_CLUSTER=<leader>,<follower> to run it")
+        val (leader, follower) = cluster!!.split(",")
+        val tenancy = "USE NAMESPACE prod; USE DATABASE shop;"
+        val key = "kotlin${ProcessHandle.current().pid()}"
+        fun nodeOf(conn: Connection): Value? =
+            ((conn.execute(CONTEXT).outcomes.last() as ValueOutcome).value as ObjectValue).fields["node"]
+        fun rows(reply: Reply): Int = (reply.outcomes.last() as? Records)?.rows?.size ?: -1
+
+        // A forward carries the script and not the session.
+        connect(follower).use { it.execute("$tenancy CREATE ledger:'$key' = { total: 1 };") }
+        val leaderNode =
+            connect(leader).use { onLeader ->
+                onLeader.execute(tenancy)
+                assertEquals(1, rows(onLeader.execute("SELECT * FROM ledger:'$key';")), "landed on the leader")
+                nodeOf(onLeader)
+            }
+        connect(follower).use { reader ->
+            val followerNode = nodeOf(reader)
+            assertNotEquals(leaderNode, followerNode)
+            reader.execute(tenancy)
+            val reply = reader.execute("SELECT * FROM ledger:'$key' ANSWERED BY LEADER;")
+            assertNull(reply.redirect, "the redirect was followed")
+            assertEquals(1, rows(reply), "the leader answered")
+            assertEquals(followerNode, nodeOf(reader), "a transient redirect stays here")
         }
     }
 }
