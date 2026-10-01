@@ -98,8 +98,11 @@ public class HttpSurface @JvmOverloads constructor(
     }
 
     /**
-     * The whole log in one response — there is no resumption and no range
-     * support, so a client's memory ceiling for this route is the log's size.
+     * A snapshot of the store's state in one response (a node before
+     * `0.18.0-beta` answered its whole log); with `since`, the log committed
+     * after that position, `1` for the whole log. There is no resumption and no
+     * range support, so a client's memory ceiling for this route is the size of
+     * what it answers.
      *
      * On a store with no `DEFINE USER` this is unauthenticated and returns
      * everything. That is the open-store rule at its loudest, not a defect.
