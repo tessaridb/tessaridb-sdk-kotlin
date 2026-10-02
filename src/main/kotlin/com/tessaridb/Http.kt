@@ -31,9 +31,16 @@ public class HttpSurface @JvmOverloads constructor(
     private val address: String,
     private val user: String? = null,
     private val password: String? = null,
+    /** With a trust every request is HTTPS, the node's certificate and name checked (§1.1). */
+    private val trust: Trust? = null,
 ) {
     private val http: JdkHttpClient =
-        JdkHttpClient.newBuilder().version(JdkHttpClient.Version.HTTP_1_1).build()
+        JdkHttpClient.newBuilder().version(JdkHttpClient.Version.HTTP_1_1).apply {
+            trust?.let {
+                sslContext(it.context)
+                sslParameters(it.parameters(listOf("http/1.1")))
+            }
+        }.build()
 
     private var token: String? = null
     private var sessionless: Boolean = false
@@ -205,12 +212,14 @@ public class HttpSurface @JvmOverloads constructor(
         val publisher =
             if (body == null) HttpRequest.BodyPublishers.noBody()
             else HttpRequest.BodyPublishers.ofByteArray(body)
-        val builder = HttpRequest.newBuilder(URI.create("http://$address$where")).method(method, publisher)
+        val builder = HttpRequest.newBuilder(URI.create("${if (trust == null) "http" else "https"}://$address$where")).method(method, publisher)
         media?.let { builder.header("Content-Type", it) }
         authorization?.let { builder.header("Authorization", it) }
         val response: HttpResponse<ByteArray> =
             try {
                 http.send(builder.build(), HttpResponse.BodyHandlers.ofByteArray())
+            } catch (why: javax.net.ssl.SSLException) {
+                throw TlsException("$method $where: ${why.message}", why)
             } catch (why: IOException) {
                 throw IoException("$method $where: ${why.message}", why)
             } catch (why: InterruptedException) {

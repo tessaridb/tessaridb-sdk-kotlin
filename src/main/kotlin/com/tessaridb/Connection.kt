@@ -284,9 +284,18 @@ public class Connection internal constructor(
  * Credentials are optional because a store with no users declared is **open**
  * and runs anything, which is what keeps an empty one usable. A closed store's
  * refusal comes from the session, not from a second rule in this client.
+ *
+ * With a [trust] the connection is TLS 1.3, and the node's certificate and name
+ * are checked; without one it travels, credentials included, in the clear
+ * (§1.1). A redirect is followed with the same [trust].
  */
 @JvmOverloads
-public fun connect(address: String, user: String? = null, password: String? = null): Connection {
+public fun connect(
+    address: String,
+    user: String? = null,
+    password: String? = null,
+    trust: Trust? = null,
+): Connection {
     val split = address.lastIndexOf(':')
     val host = if (split > 0) address.substring(0, split) else ""
     val port = if (split > 0) address.substring(split + 1).toIntOrNull() else null
@@ -295,7 +304,9 @@ public fun connect(address: String, user: String? = null, password: String? = nu
     }
     val socket =
         try {
-            Socket(host, port)
+            trust?.open(host.removePrefix("[").removeSuffix("]"), port) ?: Socket(host, port)
+        } catch (why: TlsException) {
+            throw why
         } catch (why: IOException) {
             throw IoException("connecting to $address: ${why.message}", why)
         }
@@ -305,7 +316,7 @@ public fun connect(address: String, user: String? = null, password: String? = nu
         BufferedOutputStream(socket.getOutputStream()),
         user,
         password,
-    ) { endpoint -> connect(endpoint, user, password) }
+    ) { endpoint -> connect(endpoint, user, password, trust) }
 }
 
 /** Either the outcomes or a redirect, never both. */

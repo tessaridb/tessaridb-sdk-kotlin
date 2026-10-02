@@ -25,6 +25,18 @@ public class IoException(message: String, cause: Throwable? = null) : TessariExc
     }
 }
 
+/**
+ * TLS with the node failed — the handshake, its name, its chain (§1.1).
+ *
+ * The transport class, kept apart from [IoException] because nothing about the
+ * next attempt at the same node would differ: it is not retried.
+ */
+public class TlsException(message: String, cause: Throwable? = null) : TessariException(message) {
+    init {
+        if (cause != null) initCause(cause)
+    }
+}
+
 /** The peer did not greet with `TESS`. The address is wrong. */
 public class NotThisProtocolException(message: String) : TessariException(message)
 
