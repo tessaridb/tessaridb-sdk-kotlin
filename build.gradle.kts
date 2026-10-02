@@ -12,7 +12,7 @@ plugins {
 }
 
 group = "com.tessaridb"
-version = "0.7.0"
+version = "0.8.0"
 
 repositories {
     mavenCentral()
@@ -57,4 +57,10 @@ tasks.test {
     )
     System.getenv("TESSARIDB_TEST_NODE")?.let { systemProperty("tessaridb.node", it) }
     System.getenv("TESSARIDB_TEST_HTTP")?.let { systemProperty("tessaridb.http", it) }
+    // A node started with a certificate, and the authorities that do and do not
+    // vouch for it (protocol §1.1).
+    System.getenv("TESSARIDB_TEST_TLS_NODE")?.let { systemProperty("tessaridb.tls.node", it) }
+    System.getenv("TESSARIDB_TEST_TLS_HTTP")?.let { systemProperty("tessaridb.tls.http", it) }
+    System.getenv("TESSARIDB_TEST_TLS_AUTHORITY")?.let { systemProperty("tessaridb.tls.authority", it) }
+    System.getenv("TESSARIDB_TEST_TLS_OTHER_AUTHORITY")?.let { systemProperty("tessaridb.tls.other", it) }
 }

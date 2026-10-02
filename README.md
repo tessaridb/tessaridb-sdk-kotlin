@@ -133,6 +133,25 @@ then closes by itself; a refusal after a run of wrong passphrases means **wait**
 is not retried here. The statements and frames are the protocol repository's
 `spec/vault-v1.md`.
 
+## TLS
+
+A node started with a certificate speaks TLS 1.3 on both ports and nothing else,
+and a cluster node serves clients in the clear only when its operator chose to
+(node `0.21.0-beta` and later).
+
+```kotlin
+val trust = Trust.fromPem(File("ca.pem").readBytes()) // or Trust.system()
+val connection = connect("db.example:9080", "ada", password, trust)
+val http = HttpSurface("db.example:8000", "ada", password, trust)
+```
+
+Every connection checks the node's certificate chain and that it names the host
+you dialled — a DNS name, or an IP address against the certificate's IP
+entries — including each node a redirect sends a request to; a `Trust` has no
+way to turn either check off. A failed handshake is a `TlsException`, which is
+not retried. Without a `Trust`, credentials travel in the clear, which belongs on
+a network you protect.
+
 ## The HTTP surface hands you bytes, on purpose
 
 The JVM has no JSON reader in its standard library. A typed result on the HTTP
