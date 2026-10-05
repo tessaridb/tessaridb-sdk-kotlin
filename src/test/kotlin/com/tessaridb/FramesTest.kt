@@ -5,6 +5,11 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 class GreetingTest {
     @Test
@@ -92,5 +97,29 @@ class FramesTest {
     fun `a frame that stops inside its body is truncation`() {
         val (input, _) = Wire.peer(byteArrayOf(0x02) + Wire.u32(8) + byteArrayOf(1, 2, 3))
         assertFailsWith<TruncatedException> { Frames.read(input) }
+    }
+}
+
+/** The refusal vectors of `frames-v1.json` (§3.6): a class byte, or words alone from an older node. */
+class RefusalCorpusTest {
+    @Test
+    fun `every refusal vector reads to its class and its words`() {
+        val vectors = Corpus.read("frames-v1.json").getValue("refusal").jsonArray
+        assertTrue(vectors.isNotEmpty(), "the corpus carries refusal vectors")
+        for (vector in vectors) {
+            val case = vector.jsonObject
+            val name = case.getValue("name").jsonPrimitive.content
+            val decoded = case.getValue("decoded").jsonObject
+            val read = refusalOf(Corpus.unhex(case.getValue("body_hex").jsonPrimitive.content))
+            assertEquals(decoded.getValue("class").jsonPrimitive.contentOrNull, read.refusalClass?.word, name)
+            assertEquals(decoded.getValue("message").jsonPrimitive.content, read.said, name)
+        }
+    }
+
+    @Test
+    fun `an HTTP body names its class in code, and a quoted code inside the words is not one`() {
+        assertEquals(RefusalClass.FORBIDDEN, refusalClassIn("""{"error":"no","code":"forbidden"}"""))
+        assertEquals(RefusalClass.UNKNOWN, refusalClassIn("""{"error":"no","code":"sideways"}"""))
+        assertNull(refusalClassIn("""{"error":"the text \"code\":\"retry\" is only words"}"""))
     }
 }

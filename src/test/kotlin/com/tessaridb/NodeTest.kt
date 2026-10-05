@@ -120,6 +120,7 @@ class NodeTest {
             val caught =
                 assertFailsWith<RefusedException> { connection.execute("$use SELECT * FROM nothing_here;") }
             assertTrue(caught.said.isNotEmpty(), "a refusal says something")
+            assertEquals(RefusalClass.INVALID, caught.refusalClass, "a table the node does not hold is classed invalid")
             // The store said no; the connection did not.
             assertEquals(1, assertIs<Records>(
                 connection.execute("$use SELECT * FROM thing:1;").outcomes.last()

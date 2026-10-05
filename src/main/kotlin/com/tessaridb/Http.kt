@@ -244,7 +244,10 @@ public class HttpException(
 ) : TessariException(
     if (location.isEmpty()) "the node answered $status: $said"
     else "the node answered $status: $said (at $location)"
-)
+) {
+    /** The class the body's `code` names (§5.4); null from a node before protocol 1.3. */
+    public val refusalClass: RefusalClass? = refusalClassIn(said)
+}
 
 /**
  * The `{ns}`, `{db}` and `{bucket}` segments are **names**, checked before they

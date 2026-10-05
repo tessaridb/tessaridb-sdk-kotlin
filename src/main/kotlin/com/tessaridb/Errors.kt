@@ -78,8 +78,8 @@ public class TruncatedException(message: String) : TessariException(message)
  *
  * The remedy is `DEFINE REPLICA … ROLES writable` — not a network problem. The
  * specification requires a client to keep the class distinguishable and does not
- * say how it arrives on the wire: it has no frame kind of its own and a Refusal
- * carries no structure to hold a class in. So the class is defined here and such
+ * say how it arrives on the wire: it has no frame kind of its own and no
+ * refusal class of its own (§3.6). So the class is defined here and such
  * a node's answer surfaces as a plain [RefusedException], rather than
  * string-matching a message the specification carries verbatim precisely so that
  * nobody parses it.
@@ -90,9 +90,14 @@ public class NoWritablePeerException(message: String) : TessariException(message
  * The store said no, in its own words, carried through verbatim.
  *
  * The session already writes messages that name the place in the script, and a
- * client rewording them becomes a second author for one error.
+ * client rewording them becomes a second author for one error. Branch on
+ * [refusalClass] instead: it is null from a node before protocol 1.3, which
+ * sends words only.
  */
-public class RefusedException(public val said: String) : TessariException(said)
+public class RefusedException(
+    public val said: String,
+    public val refusalClass: RefusalClass? = null,
+) : TessariException(said)
 
 /**
  * The node's greeting names a minor below the one a call needs, so nothing was

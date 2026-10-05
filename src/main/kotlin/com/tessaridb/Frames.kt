@@ -34,7 +34,7 @@ public object Frames {
     public const val CEILING: Int = 16 * 1024 * 1024
     public const val HEADER: Int = 5
     public const val MAJOR: Int = 1
-    public const val MINOR: Int = 1
+    public const val MINOR: Int = 3
 
     public const val REQUEST: Int = 1
     public const val ANSWER: Int = 2
