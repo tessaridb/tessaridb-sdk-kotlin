@@ -219,7 +219,7 @@ public class Connection internal constructor(
             Frames.ANSWER -> Reply(outcomes = readAnswer(frame.body))
             // §3.6: the body is the store's own message, whole, with no length
             // prefix in front of it.
-            Frames.REFUSAL -> throw RefusedException(String(frame.body, Charsets.UTF_8))
+            Frames.REFUSAL -> throw refusalOf(frame.body)
             Frames.ELSEWHERE -> Reply(redirect = readElsewhere(frame.body))
             else -> {
                 // A Change on a connection that has not subscribed is an unknown
@@ -265,7 +265,7 @@ public class Connection internal constructor(
             // is: read as an unknown frame it would send whoever met it to the
             // protocol, when the answer is a statement they did not run.
             close()
-            throw RefusedException(String(frame.body, Charsets.UTF_8))
+            throw refusalOf(frame.body)
         }
         if (frame.kind != Frames.CHANGE) {
             // A redirect belongs to a read that can be answered elsewhere. A
