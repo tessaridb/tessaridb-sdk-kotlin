@@ -17,8 +17,10 @@ This client's version is **its own** and never tracks the engine's. A fix here
 would otherwise force an invented engine release, and an engine release would
 force five invented client releases.
 
-What has to match is the **protocol**. This release speaks **protocol 1.3** — the refusal class of minor 3 and the
-vault frame of minor 2, the latter sent only to a node that announces minor 2 (node `0.17.0-beta` and later), and
+What has to match is the **protocol**. This release speaks **protocol 1.4** — the refusal class of minor 3, the
+vault frame of minor 2, sent only to a node that announces minor 2 (node `0.17.0-beta` and later), and a feed's
+condition and progress frame of minor 4, sent and read only with a node that announces minor 4 (node `0.33.0-beta`
+and later) — and
 connects to any node of protocol **major 1**, which is checked in the greeting
 before anything else is sent — a differing major is refused there rather than
 discovered mid-conversation, where it arrives as a decode failure that reads
@@ -56,6 +58,25 @@ A class this build does not know reads as `unknown`, which is not retriable.
 - **subscriptions**, which consume the connection they are opened on, because
   that is what the protocol does and hiding it would promise a multiplexing
   nothing performs;
+- a feed **narrowed by a condition** — `subscribeWhere(table, condition,
+  parameters)`, TessariQL without `WHERE`, its values bound rather than written
+  into it. A record that stops matching arrives as a removal, so a mirror
+  applying the feed holds exactly the matching records; a feed that skipped
+  changes delivers a `Progress`, and `resumeFrom` moves on it as on a change, so
+  a long run of skipped changes never leaves the resume point behind a pruned
+  log. Only a node of minor 4 reads a condition — an older one would send every
+  change — so the call throws `NodeTooOldException` there before anything is
+  sent:
+
+  ```kotlin
+  val feed = watcher.subscribeWhere("orders", "total > \$least", mapOf("least" to IntegerValue(100)))
+  for (arrival in feed) {
+      when (arrival) {
+          is Change -> println("${arrival.identity} ${arrival.removed}")
+          is Progress -> {} // how far it read past changes it skipped
+      }
+  }
+  ```
 - the **query builder**, checked against all 38 cases of `queries-v1.json` at
   builder contract **1.1** — a caller's value never reaches the statement text,
   and a name that is not a name is refused rather than quoted into acceptance;

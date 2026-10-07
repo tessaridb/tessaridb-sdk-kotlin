@@ -34,7 +34,7 @@ public object Frames {
     public const val CEILING: Int = 16 * 1024 * 1024
     public const val HEADER: Int = 5
     public const val MAJOR: Int = 1
-    public const val MINOR: Int = 3
+    public const val MINOR: Int = 4
 
     public const val REQUEST: Int = 1
     public const val ANSWER: Int = 2
@@ -49,6 +49,18 @@ public object Frames {
     /** The minor a node must announce before a Vault frame reaches it. */
     public const val VAULT_MINOR: Int = 2
 
+    /**
+     * Node → client only, on a feed that named a condition, to a client whose
+     * greeting said minor 4 or later (§3.15).
+     */
+    public const val PROGRESS: Int = 37
+
+    /**
+     * The minor a node must announce before a feed's condition reaches it: an
+     * older one reads past the bytes and delivers every change.
+     */
+    public const val CONDITION_MINOR: Int = 4
+
     internal val MAGIC: ByteArray = "TESS".toByteArray(Charsets.US_ASCII)
 
     /**
@@ -57,7 +69,7 @@ public object Frames {
      * arrangement and is not a property to rely on. Tags 6 through 12 belong to
      * the link nodes use among themselves and share this one byte.
      */
-    internal val FROM_NODE: Set<Int> = setOf(ANSWER, REFUSAL, CHANGE, ELSEWHERE)
+    internal val FROM_NODE: Set<Int> = setOf(ANSWER, REFUSAL, CHANGE, ELSEWHERE, PROGRESS)
 
     /**
      * Exchange greetings and return the peer's minor.

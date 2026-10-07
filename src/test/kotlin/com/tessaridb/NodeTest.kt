@@ -12,6 +12,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.jupiter.api.Assumptions.assumeTrue
+import org.junit.jupiter.api.Timeout
 
 /**
  * Exercised against a running node.
@@ -180,6 +181,49 @@ class NodeTest {
                 val change = subscription.iterator().next()
                 assertEquals("thing", change.table)
                 assertTrue(subscription.resumeFrom > 0)
+            }
+        }
+    }
+
+    /**
+     * A narrowed feed (§3.7, §3.15) sends the record that matches, sends the one
+     * that stops matching as a removal, never sends the one that never matched,
+     * and says how far it read past the changes it skipped.
+     */
+    @Test
+    @Timeout(value = 10, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+    fun `a narrowed feed sends the match, the leaving, and how far it read`() {
+        node().use { connection ->
+            seed(connection)
+            connect(address!!).use { watcher ->
+                watcher.execute(use)
+                val feed = watcher.subscribeWhere("thing", "n >= \$least", mapOf("least" to IntegerValue(10)))
+                val run = "narrowed-${System.nanoTime()}"
+                val entering = "$run-in"
+                val outside = "$run-out"
+                connection.execute("$use CREATE thing:'$entering' = { n: 20 }; CREATE thing:'$outside' = { n: 1 };")
+                connection.execute("$use UPDATE thing:'$entering' SET n = 2;")
+                connection.execute("$use UPDATE thing:'$outside' SET n = 3;")
+
+                var entered: Change? = null
+                var left: Change? = null
+                for (arrival in feed) {
+                    when (arrival) {
+                        is Change -> {
+                            assertTrue(!arrival.identity.startsWith(outside), "never matched: $arrival")
+                            if (arrival.identity != entering) continue
+                            if (entered == null) {
+                                assertTrue(!arrival.removed, "the matching write arrived as a removal")
+                                entered = arrival
+                            } else if (left == null) {
+                                assertTrue(arrival.removed, "the write that stopped matching arrived as a write")
+                                left = arrival
+                            }
+                        }
+                        is Progress -> if (left != null && arrival.sequence > left.sequence) return
+                    }
+                }
+                throw AssertionError("the feed ended: entered $entered, left $left")
             }
         }
     }
