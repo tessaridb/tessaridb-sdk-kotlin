@@ -150,17 +150,60 @@ public class Connection internal constructor(
      */
     @JvmOverloads
     public fun subscribe(from: Long = 0, table: String? = null, cursor: String? = null): Subscription {
+        start(from, table, cursor, null, emptyMap())
+        return Subscription(this, from, cursor)
+    }
+
+    /**
+     * Consume this connection and deliver only the records of [table] that
+     * [condition] holds for — TessariQL without `WHERE`, its [parameters] bound
+     * after the node reads it, so a value never becomes syntax (§3.7).
+     *
+     * A record that stops matching arrives as a removal, so a mirror applying
+     * the feed holds exactly the matching records. A feed that skipped changes
+     * delivers a [Progress] (§3.15), and [NarrowedSubscription.resumeFrom] moves
+     * on it as on a change. [from] and [cursor] mean what they mean to
+     * [subscribe].
+     *
+     * A node below minor 4 would read past the condition and send every change,
+     * so nothing is sent to one: [NodeTooOldException].
+     */
+    @JvmOverloads
+    public fun subscribeWhere(
+        table: String,
+        condition: String,
+        parameters: Map<String, Value> = emptyMap(),
+        from: Long = 0,
+        cursor: String? = null,
+    ): NarrowedSubscription {
+        if (minor < Frames.CONDITION_MINOR) throw NodeTooOldException(minor, Frames.CONDITION_MINOR)
+        start(from, table, cursor, condition, parameters)
+        return NarrowedSubscription(this, from, cursor)
+    }
+
+    private fun start(
+        from: Long,
+        table: String?,
+        cursor: String?,
+        condition: String?,
+        parameters: Map<String, Value>,
+    ) {
         if (subscribed) throw TessariException("this connection is already a subscription")
         val w = Writer()
         w.u64(from)
         w.u8(if (table == null) 0 else 1)
         if (table != null) w.text(table)
         // Last and only when present (§3.7): without it this is the frame every
-        // earlier node reads.
-        if (cursor != null) w.text(cursor)
+        // earlier node reads. A condition comes after it, so a condition with no
+        // cursor writes the cursor's place as empty text.
+        if (cursor != null || condition != null) w.text(cursor ?: "")
+        if (condition != null) {
+            w.text(condition)
+            // The parameters are ONE value: an object of name → value.
+            w.lenbytes(encodeValue(ObjectValue(parameters)))
+        }
         Frames.send(output, Frames.SUBSCRIBE, w.bytes())
         subscribed = true
-        return Subscription(this, from, cursor)
     }
 
     /**
@@ -245,7 +288,10 @@ public class Connection internal constructor(
         return frame
     }
 
-    internal fun nextChange(): Change? {
+    internal fun nextChange(): Change? = nextArrival(narrowed = false) as Change?
+
+    /** The next change, or on a [narrowed] feed the next change or progress. */
+    internal fun nextArrival(narrowed: Boolean): Arrival? {
         val frame =
             try {
                 Frames.read(input)
@@ -267,8 +313,10 @@ public class Connection internal constructor(
             close()
             throw refusalOf(frame.body)
         }
+        if (narrowed && frame.kind == Frames.PROGRESS) return readProgress(frame.body)
         if (frame.kind != Frames.CHANGE) {
-            // A redirect belongs to a read that can be answered elsewhere. A
+            // Progress belongs to a feed that named a condition and is an unknown
+            // frame on any other (§3.3). A redirect belongs to a read that can be answered elsewhere. A
             // subscription is a position in ONE node's log, so there is nothing
             // for another node to answer and this stays a refusal.
             close()
@@ -380,7 +428,7 @@ public data class Change(
      * every other feed.
      */
     public val cursor: String? = null,
-)
+) : Arrival
 
 /**
  * Changes, in order, until the connection ends.
