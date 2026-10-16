@@ -110,6 +110,35 @@ rather than by the consumer. The behaviour is the protocol repository's
 `spec/consumer-v1.md`, which every client follows, and the statements it sends
 are checked against all 14 cases of `conformance/consumer-v1.json`.
 
+## Taking work from a queue
+
+A queue (`DEFINE QUEUE`, engine `0.35.0` or later for everything below) hands
+each record to one worker under a hold that lapses. A `Queue` claims as a named
+worker and settles each record — `done` deletes it, `release` hands it back:
+
+```kotlin
+val worker = Queue(connection, "app", "main", "jobs", "resizer", batch = 10,
+    where = compare("kind", Operator.EQ, TextValue("image"))) // values are bound
+
+// Automatic: returning marks the record done, throwing hands it back at once.
+worker.runAuto { job -> println("${job.identity} attempt ${job.attempts}") }
+
+// Manual: Done, Release(Duration.ofSeconds(5)) — the queue needs a NOT BEFORE
+// field — or Leave for the hold to lapse.
+worker.runManual { Handled.Done }
+
+// Or one step at a time.
+worker.claim(5).forEach { worker.done(it) }
+```
+
+Workers on one queue take **different** records: a claim passes over records
+another worker's claim is taking. Work is **at least once** — key an outside
+effect on the queue and `job.identity`. A record whose attempts are spent goes to
+the queue's `DEAD LETTER TO` topic, read with a `Consumer`. The loop blocks; run
+it on its own thread and call `stop()` from another. The behaviour is
+`spec/queue-v1.md`, and `gradle build` renders the statements against all 20
+cases of `conformance/queue-v1.json`.
+
 ## A space as a cache, a counter and a lock
 
 A space (`DEFINE SPACE`) keeps one value per key with an optional expiry.

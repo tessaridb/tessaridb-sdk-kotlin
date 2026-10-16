@@ -16,6 +16,9 @@ public enum class RefusalReason {
     INCOMPLETE,
     NOT_A_SPAN,
     NOT_AN_ANSWERER,
+
+    /** A queue claim outside 1 to 500 records (queue contract §2). */
+    NOT_A_COUNT,
 }
 
 /**
@@ -39,6 +42,14 @@ public class BuilderException private constructor(
                 RefusalReason.NOT_A_NAME,
                 position,
                 offending,
+            )
+
+        internal fun notACount(count: Int): BuilderException =
+            BuilderException(
+                "$count is not a claim count — claim from 1 to 500 records at a time",
+                RefusalReason.NOT_A_COUNT,
+                "a count",
+                count.toString(),
             )
 
         internal fun incomplete(message: String): BuilderException =
