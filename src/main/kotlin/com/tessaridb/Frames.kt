@@ -49,6 +49,9 @@ public object Frames {
     /** The minor a node must announce before a Vault frame reaches it. */
     public const val VAULT_MINOR: Int = 2
 
+    /** The minor a node must announce before a Vault frame's declare act (5) reaches it. */
+    public const val DECLARE_MINOR: Int = 6
+
     /**
      * Node → client only, on a feed that named a condition, to a client whose
      * greeting said minor 4 or later (§3.15).

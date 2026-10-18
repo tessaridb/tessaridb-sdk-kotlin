@@ -25,7 +25,7 @@ internal class VaultAct(
     override fun toString(): String = "VaultAct($kind)"
 }
 
-private val ACTS = mapOf("status" to 1, "unseal" to 2, "seal" to 3, "change" to 4)
+private val ACTS = mapOf("status" to 1, "unseal" to 2, "seal" to 3, "change" to 4, "declare" to 5)
 
 /** Credentials, the target (the store, or one vault), then the act and its fields. */
 internal fun vaultFrameBody(
@@ -33,6 +33,7 @@ internal fun vaultFrameBody(
     place: VaultPlace?,
     act: VaultAct,
 ): ByteArray {
+    if (act.kind == "declare" && place == null) throw TessariException("a declaration names the vault it declares")
     val w = Writer()
     if (credentials != null) {
         w.u8(1)
@@ -51,7 +52,7 @@ internal fun vaultFrameBody(
     }
     w.u8(ACTS.getValue(act.kind))
     when (act.kind) {
-        "unseal" -> w.text(act.passphrase ?: "")
+        "unseal", "declare" -> w.text(act.passphrase ?: "")
         "change" -> {
             w.text(act.current ?: "")
             w.text(act.next ?: "")
