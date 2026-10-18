@@ -1,7 +1,7 @@
 package com.tessaridb
 
 /*
- * A vault — vault contract 1.0 (`spec/vault-v1.md` in the protocol repository).
+ * A vault — vault contract 1.1 (`spec/vault-v1.md` in the protocol repository).
  *
  * Two halves. The store's acts — [vaultStatus], [unseal], [seal],
  * [changePassphrase] on a [Connection] — go in a frame of their own (protocol
@@ -80,6 +80,17 @@ public class Vault(
      * other vault the store holds.
      */
     public fun unseal(passphrase: String): VaultStatus = connection.act(VaultAct("unseal", passphrase = passphrase), place)
+
+    /**
+     * Declare this vault with its own passphrase, as `DEFINE VAULT … PASSPHRASE`
+     * does, with the passphrase a field of the frame rather than statement text.
+     * A node below minor 6 does not know the act, so nothing is sent to one:
+     * [NodeTooOldException].
+     */
+    public fun declare(passphrase: String): VaultStatus {
+        if (connection.minor < Frames.DECLARE_MINOR) throw NodeTooOldException(connection.minor, Frames.DECLARE_MINOR)
+        return connection.act(VaultAct("declare", passphrase = passphrase), place)
+    }
 
     /** Seal this vault; the store and every other vault stay as they were. */
     public fun seal(): VaultStatus = connection.act(VaultAct("seal"), place)

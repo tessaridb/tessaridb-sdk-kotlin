@@ -1,9 +1,12 @@
 package com.tessaridb
 
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import java.time.Instant
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.int
@@ -20,7 +23,7 @@ class VaultCorpusTest {
     @Test
     fun everyFrameIsTheCorpusBytes() {
         val frames = corpus.getValue("frames").jsonArray
-        assertEquals(11, frames.size, "the corpus shrank")
+        assertEquals(12, frames.size, "the corpus shrank")
         for (case in frames) {
             val build = case.jsonObject.getValue("build").jsonObject
             val credentials =
@@ -106,5 +109,15 @@ class VaultCorpusTest {
         assertNull(readVaultStatus(status("sealed")).custody)
         assertFailsWith<TessariException> { readVaultStatus(status("ajar")) }
         assertFailsWith<TessariException> { readVaultStatus(status("sealed", "custody" to TextValue("shared"))) }
+    }
+
+    @Test
+    fun aDeclarationToANodeBelowMinor6IsRefusedBeforeSending() {
+        val sent = ByteArrayOutputStream()
+        val connection = Connection(AutoCloseable {}, ByteArrayInputStream(Wire.greeting(minor = 5)), sent, null, null)
+        val refused = assertFailsWith<NodeTooOldException> { Vault(connection, "app", "main", "own").declare("a passphrase") }
+        assertEquals(5 to 6, refused.found to refused.needed)
+        assertFalse(refused.message.orEmpty().contains("a passphrase"))
+        assertEquals(6, sent.size(), "only the greeting was sent")
     }
 }

@@ -71,12 +71,9 @@ class VaultNodeTest {
             assertEquals(revealed, vault.reveal("github", listOf("password")))
 
             // A vault with its own passphrase: the store's opens nothing in it.
-            conn.execute(
-                "USE NAMESPACE app; USE DATABASE main; DEFINE VAULT own PASSPHRASE '$TEAM'; " +
-                    "DEFINE FIELD token ON own TYPE string SECRET;",
-            )
             val own = Vault(conn, "app", "main", "own")
-            val status = own.status()
+            val status = own.declare(TEAM)
+            conn.execute("USE NAMESPACE app; USE DATABASE main; DEFINE FIELD token ON own TYPE string SECRET;")
             assertEquals(Custody.OWN to SealState.UNSEALED, status.custody to status.state)
             own.write("github", mapOf("token" to TextValue(PLANTED)))
             assertEquals(SealState.SEALED, own.seal().state)
