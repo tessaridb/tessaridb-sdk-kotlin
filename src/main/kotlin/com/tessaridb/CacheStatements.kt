@@ -15,10 +15,10 @@ internal typealias CacheStatement = Pair<String, Map<String, Value>>
 internal class CacheStatements(
     namespace: String,
     database: String,
-    private val space: String,
+    internal val space: String,
 ) {
     /** Sent with every statement: a reconnected connection has forgotten any earlier USE (§1). */
-    private val tenancy: String
+    internal val tenancy: String
 
     init {
         for ((position, name) in listOf("a namespace" to namespace, "a database" to database, "a space" to space)) {
@@ -27,7 +27,7 @@ internal class CacheStatements(
         tenancy = "USE NAMESPACE $namespace; USE DATABASE $database; "
     }
 
-    private fun keyed(
+    internal fun keyed(
         statement: String,
         key: String,
         vararg more: Pair<String, Value>,

@@ -89,4 +89,67 @@ class CacheNodeTest {
             )
             assertEquals(TextValue("next"), c.get("report"))
         }
+
+    private fun words(vararg items: String): List<Value> = items.map(::TextValue)
+
+    @Test
+    fun aKeyHoldsAList() =
+        withCache { c ->
+            assertEquals(4, c.listPush("l", words("a", "b", "c", "d")))
+            assertEquals(4, c.listLen("l"))
+            assertEquals(TextValue("d"), c.listAt("l", -1))
+            assertEquals(words("b", "c"), c.listRange("l", 1, 2))
+            assertEquals(TextValue("a"), c.listPop("l"))
+            assertEquals(words("d", "c"), c.listPopMany("l", 2, End.BACK))
+            assertEquals(1, c.listRemove("l", TextValue("b")))
+            assertEquals(0, c.listLen("l"), "an emptied list is no key")
+            assertNull(c.listPop("l"))
+            assertEquals(emptyList(), c.listRange("nothing", 0, 5))
+            c.listPush("t", words("1", "2", "3"))
+            c.listTrim("t", 0, 1)
+            assertEquals(2, c.listLen("t"))
+            assertFailsWith<CacheArgumentException> { c.listPush("l", emptyList()) }
+            assertFailsWith<CacheArgumentException> { c.listRange("l", -1, 2) }
+            assertFailsWith<CacheArgumentException> { c.listPopMany("l", -1) }
+        }
+
+    @Test
+    fun aKeyHoldsAHash() =
+        withCache { c ->
+            assertEquals(2, c.hashSet("h", linkedMapOf("x" to IntegerValue(1), "y" to TextValue("why"))))
+            assertEquals(TextValue("why"), c.hashGet("h", "y"))
+            assertNull(c.hashGet("h", "z"))
+            assertEquals(5, c.hashIncr("h", "x", 4))
+            assertEquals(2, c.hashLen("h"))
+            assertEquals(1, c.hashRemove("h", listOf("y")))
+            assertEquals(mapOf<String, Value>("x" to IntegerValue(5)), c.hashGetAll("h"))
+            assertEquals(emptyMap(), c.hashGetAll("nothing"))
+            assertFailsWith<CacheArgumentException> { c.hashSet("h", emptyMap()) }
+        }
+
+    @Test
+    fun aKeyHoldsASetOfMembers() =
+        withCache { c ->
+            assertEquals(2, c.membersAdd("s", words("p", "q")))
+            assertTrue(c.membersHas("s", TextValue("p")))
+            assertFalse(c.membersHas("nothing", TextValue("p")))
+            assertEquals(2, c.membersLen("s"))
+            assertEquals(1, c.membersRemove("s", words("q")))
+            assertEquals(words("p"), c.membersAll("s"))
+            assertFailsWith<CacheArgumentException> { c.membersAdd("s", emptyList()) }
+        }
+
+    @Test
+    fun aKeyHoldsARanking() =
+        withCache { c ->
+            assertEquals(3, c.scoresAdd("r", linkedMapOf("ann" to 3.0, "bob" to 1.0, "cid" to 2.0)))
+            assertEquals(1.5, c.scoresIncr("r", "bob", 0.5))
+            assertEquals(3.0, c.scoresScore("r", "ann"))
+            assertEquals(2, c.scoresRank("r", "ann"))
+            assertNull(c.scoresRank("r", "eve"))
+            assertEquals(listOf(Scored("bob", 1.5), Scored("cid", 2.0)), c.scoresRange("r", 0, 1))
+            assertEquals(listOf(Scored("cid", 2.0), Scored("ann", 3.0)), c.scoresBetween("r", low = 2.0))
+            assertEquals(1, c.scoresRemove("r", listOf("ann")))
+            assertFailsWith<CacheArgumentException> { c.scoresAdd("r", mapOf("eve" to Double.NaN)) }
+        }
 }
