@@ -166,6 +166,19 @@ the next holder's lock. `ttl()` keeps the store's two absences apart:
 adds no dependency. The statements are the protocol repository's
 `spec/cache-v1.md`, which every client follows.
 
+A key may also hold a list, a hash, a set of members or a ranking. Each call
+is still one statement, atomic per key, and a key that is not there reads as
+empty:
+
+```kotlin
+cache.listPush("jobs", listOf(TextValue("a"), TextValue("b")))
+val next = cache.listPop("jobs")
+cache.hashSet("user:1", mapOf("name" to TextValue("ada")))
+cache.membersAdd("tags", listOf(TextValue("new")))
+cache.scoresAdd("board", mapOf("ada" to 3.0, "bob" to 1.0))
+val top = cache.scoresRange("board", -3, -1) // the three highest, lowest first
+```
+
 ## A vault, and its passphrase
 
 A vault (`DEFINE VAULT`) keeps `SECRET` fields encrypted in every copy that is not a

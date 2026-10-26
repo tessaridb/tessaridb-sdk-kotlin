@@ -4,7 +4,8 @@ import java.security.SecureRandom
 import java.time.Duration
 
 /**
- * A space used as a cache, a counter and a lock — cache contract 1.0
+ * A space used as a cache, a counter and a lock, and a key holding a list, a
+ * hash, a set or a ranking ([ContainerCalls]) — cache contract 1.1
  * (`spec/cache-v1.md` in the protocol repository).
  *
  * A [Cache] uses a connection the caller holds and sends one statement per call,
@@ -22,8 +23,8 @@ public class Cache(
     namespace: String,
     database: String,
     space: String,
-) {
-    internal val statements: CacheStatements = CacheStatements(namespace, database, space)
+) : ContainerCalls() {
+    internal override val statements: CacheStatements = CacheStatements(namespace, database, space)
 
     /** How long a key has left — the store's two absences kept apart. */
     public sealed interface Ttl {
@@ -157,6 +158,8 @@ public class Cache(
         if (reply.redirect != null) throw TessariException("a cache statement was answered by a redirect to another node")
         return reply.outcomes
     }
+
+    internal override fun answer(rendered: CacheStatement): Value = value(rendered)
 
     /** The last outcome's value; a statement that answers none (a plain `SET`) reads as [NoneValue]. */
     private fun value(rendered: CacheStatement): Value =
