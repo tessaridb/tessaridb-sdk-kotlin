@@ -24,7 +24,7 @@ class QueriesCorpusTest {
         // A client rendering against an older contract renders the clauses it
         // knows and silently omits the ones it does not.
         assertEquals(1, corpus.getValue("contract_major").jsonPrimitive.content.toInt())
-        assertEquals(1, corpus.getValue("contract_minor").jsonPrimitive.content.toInt())
+        assertEquals(2, corpus.getValue("contract_minor").jsonPrimitive.content.toInt())
     }
 
     @Test

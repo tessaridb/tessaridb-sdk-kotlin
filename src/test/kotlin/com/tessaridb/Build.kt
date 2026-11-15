@@ -39,6 +39,20 @@ internal object Build {
             }
             "delete_record" ->
                 deleteRecord(held.text("table"), Corpus.value(held.getValue("id"))).render()
+            "define_table" -> {
+                val statement = defineTable(held.text("table"))
+                for ((field, kind) in held["columns"]?.jsonObject ?: JsonObject(emptyMap())) {
+                    statement.column(field, kind.jsonPrimitive.content)
+                }
+                held["store"]?.let { statement.store(it.jsonPrimitive.content) }
+                held["partitions"]?.jsonObject?.let { node ->
+                    statement.partitions(
+                        node.getValue("count").jsonPrimitive.long,
+                        node.getValue("by").jsonPrimitive.content,
+                    )
+                }
+                statement.render()
+            }
             else -> error("the corpus carries a statement this test does not translate: $kind")
         }
     }
