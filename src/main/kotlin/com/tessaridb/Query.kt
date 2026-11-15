@@ -19,6 +19,15 @@ public enum class RefusalReason {
 
     /** A queue claim outside 1 to 500 records (queue contract §2). */
     NOT_A_COUNT,
+
+    /** A store word that is neither row nor column (§4.11). */
+    NOT_A_STORE_KIND,
+
+    /** A partition count below one (§4.11). */
+    NOT_A_PARTITION_COUNT,
+
+    /** PARTITIONS beside a store other than column (§4.11). */
+    PARTITIONS_WITHOUT_STORE,
 }
 
 /**
@@ -70,6 +79,30 @@ public class BuilderException private constructor(
                 RefusalReason.NOT_AN_ANSWERER,
                 null,
                 offending,
+            )
+
+        internal fun notAStoreKind(offending: String): BuilderException =
+            BuilderException(
+                "\"$offending\" is not a store kind — write \"row\" or \"column\"",
+                RefusalReason.NOT_A_STORE_KIND,
+                null,
+                offending,
+            )
+
+        internal fun notAPartitionCount(offending: String): BuilderException =
+            BuilderException(
+                "$offending is not a partition count — write a whole number from 1 up",
+                RefusalReason.NOT_A_PARTITION_COUNT,
+                null,
+                offending,
+            )
+
+        internal fun partitionsWithoutStore(): BuilderException =
+            BuilderException(
+                "partitions ride only a column store — write store: \"column\" beside them",
+                RefusalReason.PARTITIONS_WITHOUT_STORE,
+                null,
+                null,
             )
     }
 }

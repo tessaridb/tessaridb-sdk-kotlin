@@ -226,6 +226,62 @@ public class DeleteRecord internal constructor(table: String, private val id: Va
     }
 }
 
+/** `DEFINE TABLE <name> (<columns>) [STORE ROW|COLUMN] [PARTITIONS n BY field]` (contract §4.11). */
+public class DefineTable internal constructor(table: String) {
+    private val table: String = checkName("a table", table)
+    private val columns = LinkedHashMap<String, String>()
+    private var store: String? = null
+    private var partitions: Pair<Long, String>? = null
+
+    /** One declared column: the field's name and its type word. Columns render
+     * in the contract's byte order (§4.8), so call order is not rendered order. */
+    public fun column(name: String, kind: String): DefineTable {
+        columns[checkName("a field", name)] = kind
+        return this
+    }
+
+    /** `STORE ROW` or `STORE COLUMN` from a caller's word — checked, because a
+     * string that arrived from outside is exactly what must not reach the
+     * script unexamined. */
+    public fun store(kind: String): DefineTable {
+        if (kind != "row" && kind != "column") {
+            throw BuilderException.notAStoreKind(kind)
+        }
+        store = kind
+        return this
+    }
+
+    /** `PARTITIONS <count> BY <field>` — refused here when the count is below
+     * one, and at render beside any store other than `column`. */
+    public fun partitions(count: Long, by: String): DefineTable {
+        if (count < 1) {
+            throw BuilderException.notAPartitionCount(count.toString())
+        }
+        partitions = count to checkName("a field", by)
+        return this
+    }
+
+    /** Render the statement. A definition binds nothing: every position names
+     * a thing, and the count is the statement's shape. */
+    public fun render(): Rendered {
+        val body = columns.entries.sortedBy { it.key }
+            .joinToString(", ") { "${it.key} ${it.value}" }
+        val script = StringBuilder("DEFINE TABLE $table ($body)")
+        store?.let { script.append(" STORE ${it.uppercase()}") }
+        partitions?.let { (count, by) ->
+            if (store != "column") {
+                throw BuilderException.partitionsWithoutStore()
+            }
+            script.append(" PARTITIONS $count BY $by")
+        }
+        // No binder: nothing binds.
+        return Rendered(script.append(';').toString(), emptyMap())
+    }
+}
+
+/** A table definition: its columns, and the storage layout clause. */
+public fun defineTable(table: String): DefineTable = DefineTable(table)
+
 public fun select(table: String): Select = Select(table)
 
 public fun createRecord(table: String, id: Value): CreateRecord = CreateRecord(table, id)
