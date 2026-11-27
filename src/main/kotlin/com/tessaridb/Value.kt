@@ -79,6 +79,13 @@ public data class GeometryValue(val shape: Shape) : Value
 
 public data class RegexValue(val pattern: String) : Value
 
+/**
+ * A fold's state: the accumulator a grouping read can store and merge. The
+ * fold's name travels with the state so a merge offered another fold's state
+ * can refuse rather than mis-add — the name is part of the value.
+ */
+public data class FoldStateValue(val fold: String, val state: Value) : Value
+
 /** A record's identity within its table. The four variants are fixed forever. */
 public sealed interface RecordId {
     public data class OfInteger(val value: Long) : RecordId
