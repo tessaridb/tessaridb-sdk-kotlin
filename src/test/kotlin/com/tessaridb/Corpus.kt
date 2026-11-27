@@ -95,6 +95,11 @@ internal object Corpus {
                 )
             "geometry" -> GeometryValue(shape(body.jsonObject))
             "regex" -> RegexValue(body.jsonPrimitive.content)
+            "fold_state" ->
+                FoldStateValue(
+                    body.jsonObject.getValue("fold").jsonPrimitive.content,
+                    value(body.jsonObject.getValue("state")),
+                )
             else -> error("the corpus carries a value kind this client does not know: $kind")
         }
     }

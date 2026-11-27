@@ -23,6 +23,7 @@ private const val TAG_RANGE = 0x0E
 private const val TAG_SET = 0x0F
 private const val TAG_GEOMETRY = 0x10
 private const val TAG_REGEX = 0x11
+private const val TAG_FOLD_STATE = 0x12
 
 // Three numeric encodings, two conventions: the integer goes through the
 // inverting i64, while the float bits and the decimal mantissa are written plain.
@@ -157,6 +158,11 @@ private fun writeValue(w: Writer, value: Value) {
             w.u8(TAG_REGEX)
             w.text(value.pattern)
         }
+        is FoldStateValue -> {
+            w.u8(TAG_FOLD_STATE)
+            w.text(value.fold)
+            writeValue(w, value.state)
+        }
     }
 }
 
@@ -274,6 +280,7 @@ private fun readValue(r: Reader): Value =
         TAG_RANGE -> RangeValue(readBound(r), readBound(r))
         TAG_GEOMETRY -> GeometryValue(readShape(r))
         TAG_REGEX -> RegexValue(r.text("a regex"))
+        TAG_FOLD_STATE -> FoldStateValue(r.text("a fold's name"), readValue(r))
         else -> throw ProtocolException("unknown value tag 0x%02x".format(tag))
     }
 
